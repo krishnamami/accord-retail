@@ -1,0 +1,773 @@
+{
+  "_doc": {
+    "title": "Accord Retail Ontology — Knowledge Base",
+    "purpose": "Machine-readable ontology. Every object type, evidence type, decision, verb and link the analysis engine reads to make decisions and enforce governance.",
+    "conventions": [
+      "Keys beginning with '_' are documentation only. The engine must ignore them.",
+      "Enum values are lower_snake_case for data values and UPPER_SNAKE_CASE for verbs, decision types and outcomes.",
+      "'mutates' and 'performed_by' are always arrays. A read-only verb has mutates: [] and read_only: true.",
+      "Evidence types are referenced everywhere by their 'name'. Decisions list the evidence names they read.",
+      "This file is versioned with the ontology. A change to objects, evidence types, decisions, verbs or links requires a version bump."
+    ],
+    "sources": [
+      "accord_retail_ontology_v0_1.docx (human-readable specification)",
+      "GOVERNANCE.md (actors, entitlements, data access)",
+      "PRD.md v1.0"
+    ],
+    "reconciliations": [
+      "RECOMMENDATION_ASSESSMENT outcome is ASSESSED | CANNOT_ASSESS. RECOMMENDED | NOT_RECOMMENDED is the per-action verdict inside an ASSESSED outcome. EXECUTE_ACTION is entitled by outcome = ASSESSED and verdict = RECOMMENDED (see GOVERNANCE.md §14).",
+      "cart_abandonment_rate is included as the 20th evidence type, carried over from the ontology document, so the count matches the declared 20 across 5 categories."
+    ]
+  },
+
+  "version": "0.1",
+  "released": "2026-09-12",
+
+  "model": {
+
+    "_comment": "Five collections: objects (what exists), evidence_types (what can be known), decisions (what can be concluded), verbs (what can be done), links (how objects relate).",
+
+    "objects": [
+      {
+        "name": "Business",
+        "grain": "entity",
+        "key_field": "business_id",
+        "business_meaning": "The retail owner's business unit; data scope boundary",
+        "properties": [
+          { "name": "business_id", "type": "uuid", "required": true },
+          { "name": "name", "type": "string", "required": true },
+          { "name": "revenue_monthly", "type": "decimal", "description": "Last month's total revenue" },
+          { "name": "channels", "type": "array[string]", "description": "online, retail, marketplace, other" },
+          { "name": "goals", "type": "string", "description": "Free text: what does owner want to achieve" },
+          { "name": "fiscal_year_start", "type": "month", "description": "Jan, Feb, etc. for seasonal normalization" },
+          { "name": "created_at", "type": "timestamp" }
+        ]
+      },
+      {
+        "name": "Product",
+        "grain": "entity",
+        "key_field": "product_id",
+        "business_meaning": "A sellable item (SKU) with stable identity",
+        "properties": [
+          { "name": "product_id", "type": "uuid", "required": true },
+          { "name": "business_id", "type": "uuid", "required": true },
+          { "name": "name", "type": "string" },
+          { "name": "category", "type": "string" },
+          { "name": "cogs", "type": "decimal", "description": "Cost of goods sold" },
+          { "name": "list_price", "type": "decimal" }
+        ]
+      },
+      {
+        "name": "Sale",
+        "grain": "event",
+        "key_field": "sale_id",
+        "business_meaning": "A transaction; the fact that a product was sold",
+        "properties": [
+          { "name": "sale_id", "type": "uuid", "required": true },
+          { "name": "business_id", "type": "uuid", "required": true },
+          { "name": "product_id", "type": "uuid" },
+          { "name": "customer_id", "type": "uuid" },
+          { "name": "channel", "type": "string", "description": "online, retail, marketplace" },
+          { "name": "sale_date", "type": "date", "required": true },
+          { "name": "quantity", "type": "int" },
+          { "name": "revenue", "type": "decimal" },
+          { "name": "discount_applied", "type": "decimal" }
+        ]
+      },
+      {
+        "name": "Customer",
+        "grain": "entity",
+        "key_field": "customer_id",
+        "business_meaning": "Cohort of buyers (never individuals; aggregated only)",
+        "properties": [
+          { "name": "customer_id", "type": "uuid", "required": true },
+          { "name": "business_id", "type": "uuid", "required": true },
+          { "name": "acquisition_channel", "type": "string" },
+          { "name": "first_purchase_date", "type": "date" },
+          { "name": "last_purchase_date", "type": "date" },
+          { "name": "repeat_count", "type": "int", "description": "How many times purchased" },
+          { "name": "churn_status", "type": "string", "enum": ["active", "dormant", "churned"], "description": "active, dormant, churned" }
+        ]
+      },
+      {
+        "name": "Evidence",
+        "grain": "event",
+        "key_field": "evidence_id",
+        "business_meaning": "A sourced statement about the business (revenue, churn, margin, etc.)",
+        "description": "Evidence is never computed invisibly. Every statement has provenance.",
+        "properties": [
+          { "name": "evidence_id", "type": "uuid", "required": true },
+          { "name": "business_id", "type": "uuid", "required": true },
+          {
+            "name": "evidence_type",
+            "type": "string",
+            "required": true,
+            "enum": [
+              "revenue_monthly",
+              "revenue_trend",
+              "revenue_concentration",
+              "channel_mix",
+              "churn_rate",
+              "repeat_purchase_rate",
+              "customer_lifetime_value",
+              "customer_acquisition_cost",
+              "ltv_to_cac_ratio",
+              "customer_cohort_retention",
+              "product_margin",
+              "product_revenue_pct",
+              "margin_trend",
+              "inventory_turnover",
+              "slow_moving_inventory_pct",
+              "stockout_frequency",
+              "cart_abandonment_rate",
+              "competitor_price_comparison",
+              "industry_churn_benchmark",
+              "industry_margin_benchmark"
+            ],
+            "description": "Must match a name in model.evidence_types"
+          },
+          { "name": "about_type", "type": "string", "enum": ["business", "product", "customer", "channel"] },
+          { "name": "about_id", "type": "uuid", "description": "Which product/customer/etc." },
+          { "name": "asserted_by", "type": "string", "enum": ["form", "shopify_api", "calculation", "user"] },
+          { "name": "source_system", "type": "string", "enum": ["csv", "shopify", "manual", "postgres_calc"] },
+          { "name": "state", "type": "string", "enum": ["present", "absent", "contradicted"], "description": "Has this evidence been observed, is it missing, or does it conflict?" },
+          { "name": "observed_at", "type": "timestamp", "required": true },
+          { "name": "payload_json", "type": "object", "description": "{value, unit, confidence_0_to_1, source_record_id}" }
+        ]
+      },
+      {
+        "name": "Decision",
+        "grain": "system",
+        "key_field": "decision_id",
+        "business_meaning": "An auditable conclusion reached against declared inputs",
+        "description": "Every decision is deterministic. Same inputs always produce same outcome.",
+        "properties": [
+          { "name": "decision_id", "type": "uuid", "required": true },
+          { "name": "business_id", "type": "uuid", "required": true },
+          { "name": "decision_type", "type": "string", "required": true, "enum": ["BOTTLENECK_DIAGNOSIS", "RECOMMENDATION_ASSESSMENT"] },
+          { "name": "subject_id", "type": "uuid" },
+          { "name": "outcome", "type": "string", "required": true, "enum": ["IDENTIFIED", "CANNOT_DECIDE", "ASSESSED", "CANNOT_ASSESS"], "description": "Valid values depend on decision_type; see model.decisions[].outcomes" },
+          { "name": "reasoning_json", "type": "object", "description": "{detector_scores, threshold_applied, root_cause_analysis}" },
+          { "name": "input_digest", "type": "string", "description": "SHA256 hash of Evidence inputs for replay/reproducibility" },
+          { "name": "concluded_at", "type": "timestamp", "required": true }
+        ]
+      },
+      {
+        "name": "Action",
+        "grain": "system",
+        "key_field": "action_id",
+        "business_meaning": "Something done in the world, authorized by a decision outcome",
+        "properties": [
+          { "name": "action_id", "type": "uuid", "required": true },
+          { "name": "business_id", "type": "uuid", "required": true },
+          { "name": "verb", "type": "string", "enum": ["EXECUTE_ACTION", "RECORD_OUTCOME", "CONNECT_SHOPIFY"] },
+          { "name": "target_type", "type": "string", "enum": ["bottleneck", "recommendation", "business"] },
+          { "name": "target_id", "type": "uuid" },
+          { "name": "authorized_by_decision_id", "type": "uuid", "description": "Which decision outcome permits this" },
+          { "name": "performed_by", "type": "string", "enum": ["business_owner", "system", "consultant"] },
+          { "name": "performed_at", "type": "timestamp" },
+          { "name": "result_json", "type": "object", "description": "{outcome, measurement_data}" },
+          { "name": "produced_evidence_id", "type": "uuid", "description": "The outcome became new Evidence" }
+        ]
+      }
+    ],
+
+    "evidence_types": [
+      {
+        "name": "revenue_monthly",
+        "category": "revenue_sales",
+        "asserted_by": ["form", "shopify_api"],
+        "source_system": ["csv", "shopify"],
+        "state_enum": ["present", "absent", "contradicted"],
+        "role_in_diagnosis": "CRITICAL",
+        "unit": "USD",
+        "calculation": "SUM(sales.revenue) WHERE sale_date >= month_start AND sale_date < month_end",
+        "confidence_factors": {
+          "full_month_data": 1.0,
+          "partial_month": 0.7,
+          "thin_data": 0.3
+        },
+        "description": "Total revenue this month (aggregated, not by customer)"
+      },
+      {
+        "name": "churn_rate",
+        "category": "customer_retention",
+        "asserted_by": ["calculation"],
+        "source_system": ["postgres_calc"],
+        "state_enum": ["present", "absent", "contradicted"],
+        "role_in_diagnosis": "CRITICAL",
+        "unit": "percentage",
+        "calculation": "(customers_last_month - customers_this_month) / customers_last_month",
+        "confidence_factors": {
+          "10_plus_customers": 1.0,
+          "5_to_9_customers": 0.6,
+          "under_5_customers": 0.1
+        },
+        "description": "% of customers who didn't return"
+      },
+      {
+        "name": "repeat_purchase_rate",
+        "category": "customer_retention",
+        "asserted_by": ["calculation"],
+        "source_system": ["postgres_calc"],
+        "state_enum": ["present", "absent"],
+        "role_in_diagnosis": "CRITICAL",
+        "unit": "percentage",
+        "calculation": "COUNT(DISTINCT customer_id WHERE repeat_count >= 2) / COUNT(DISTINCT customer_id)",
+        "description": "% of customers who bought more than once"
+      },
+      {
+        "name": "product_margin",
+        "category": "product_performance",
+        "asserted_by": ["calculation"],
+        "source_system": ["postgres_calc"],
+        "state_enum": ["present", "absent"],
+        "role_in_diagnosis": "IMPORTANT",
+        "unit": "percentage",
+        "calculation": "(revenue - cogs) / revenue * 100",
+        "description": "Gross margin % per product"
+      },
+      {
+        "name": "product_revenue_pct",
+        "category": "product_performance",
+        "asserted_by": ["calculation"],
+        "source_system": ["postgres_calc"],
+        "state_enum": ["present"],
+        "role_in_diagnosis": "IMPORTANT",
+        "unit": "percentage",
+        "calculation": "revenue_by_product / total_revenue * 100",
+        "description": "What % of total revenue does this product represent"
+      },
+      {
+        "name": "inventory_turnover",
+        "category": "operational",
+        "asserted_by": ["calculation"],
+        "source_system": ["postgres_calc"],
+        "state_enum": ["present", "absent"],
+        "role_in_diagnosis": "IMPORTANT",
+        "unit": "times_per_year",
+        "calculation": "cogs_annual / avg_inventory_value",
+        "description": "How many times inventory sold and replaced"
+      },
+      {
+        "name": "slow_moving_inventory_pct",
+        "category": "operational",
+        "asserted_by": ["calculation"],
+        "source_system": ["postgres_calc"],
+        "state_enum": ["present"],
+        "role_in_diagnosis": "IMPORTANT",
+        "unit": "percentage",
+        "calculation": "SUM(value WHERE days_since_last_sold > 90) / total_inventory_value",
+        "description": "% of working capital tied up in slow-moving stock"
+      },
+      {
+        "name": "customer_lifetime_value",
+        "category": "customer_retention",
+        "asserted_by": ["calculation"],
+        "source_system": ["postgres_calc"],
+        "state_enum": ["present", "absent"],
+        "role_in_diagnosis": "CRITICAL",
+        "unit": "USD",
+        "calculation": "AVG(sum_of_customer_purchases)",
+        "description": "Average total revenue per customer over their lifetime"
+      },
+      {
+        "name": "customer_acquisition_cost",
+        "category": "customer_retention",
+        "asserted_by": ["form"],
+        "source_system": ["csv", "manual"],
+        "state_enum": ["present", "absent"],
+        "role_in_diagnosis": "IMPORTANT",
+        "unit": "USD",
+        "calculation": "marketing_spend / new_customers_acquired",
+        "description": "Average cost to acquire one customer (by channel)"
+      },
+      {
+        "name": "ltv_to_cac_ratio",
+        "category": "customer_retention",
+        "asserted_by": ["calculation"],
+        "source_system": ["postgres_calc"],
+        "state_enum": ["present"],
+        "role_in_diagnosis": "CRITICAL",
+        "unit": "ratio",
+        "calculation": "customer_lifetime_value / customer_acquisition_cost",
+        "description": "Unit economics health: 3:1 or higher is healthy"
+      },
+      {
+        "name": "revenue_concentration",
+        "category": "revenue_sales",
+        "asserted_by": ["calculation"],
+        "source_system": ["postgres_calc"],
+        "state_enum": ["present"],
+        "role_in_diagnosis": "IMPORTANT",
+        "unit": "percentage",
+        "calculation": "SUM(top_3_products_revenue) / total_revenue * 100",
+        "description": "What % of revenue comes from top 3 products (concentration risk)"
+      },
+      {
+        "name": "channel_mix",
+        "category": "revenue_sales",
+        "asserted_by": ["calculation"],
+        "source_system": ["postgres_calc"],
+        "state_enum": ["present"],
+        "role_in_diagnosis": "IMPORTANT",
+        "unit": "percentage_by_channel",
+        "calculation": "{online: %, retail: %, marketplace: %}",
+        "description": "Revenue distribution across channels"
+      },
+      {
+        "name": "margin_trend",
+        "category": "product_performance",
+        "asserted_by": ["calculation"],
+        "source_system": ["postgres_calc"],
+        "state_enum": ["present", "absent"],
+        "role_in_diagnosis": "IMPORTANT",
+        "unit": "percentage_points",
+        "calculation": "margin_this_month - margin_last_month",
+        "description": "Is margin getting better or worse month-over-month"
+      },
+      {
+        "name": "revenue_trend",
+        "category": "revenue_sales",
+        "asserted_by": ["calculation"],
+        "source_system": ["postgres_calc"],
+        "state_enum": ["present"],
+        "role_in_diagnosis": "CRITICAL",
+        "unit": "percentage",
+        "calculation": "(revenue_this_month - revenue_last_month) / revenue_last_month * 100",
+        "description": "Month-over-month growth rate"
+      },
+      {
+        "name": "customer_cohort_retention",
+        "category": "customer_retention",
+        "asserted_by": ["calculation"],
+        "source_system": ["postgres_calc"],
+        "state_enum": ["present", "absent"],
+        "role_in_diagnosis": "CRITICAL",
+        "unit": "percentage_by_cohort",
+        "calculation": "{email: %, organic: %, paid_ads: %, referral: %}",
+        "description": "Which acquisition channel has best repeat rate"
+      },
+      {
+        "name": "stockout_frequency",
+        "category": "operational",
+        "asserted_by": ["form"],
+        "source_system": ["manual"],
+        "state_enum": ["present", "absent"],
+        "role_in_diagnosis": "IMPORTANT",
+        "unit": "count_per_month",
+        "calculation": "How many times did a product run out of stock",
+        "description": "Revenue lost to stockouts (proxy: customer counts unable to buy)"
+      },
+      {
+        "name": "cart_abandonment_rate",
+        "category": "operational",
+        "asserted_by": ["form"],
+        "source_system": ["manual"],
+        "state_enum": ["present", "absent"],
+        "role_in_diagnosis": "IMPORTANT",
+        "unit": "percentage",
+        "calculation": "abandoned_carts / initiated_checkouts * 100 (owner-supplied from e-commerce platform analytics)",
+        "description": "Conversion leak for online channels; absent for in-store-only businesses"
+      },
+      {
+        "name": "competitor_price_comparison",
+        "category": "external_competitive",
+        "asserted_by": ["user"],
+        "source_system": ["manual"],
+        "state_enum": ["present", "absent"],
+        "role_in_diagnosis": "CONTEXT",
+        "unit": "USD_and_percentage",
+        "calculation": "{competitor_1_avg_price, our_price_delta, our_price_competitiveness}",
+        "description": "How does our pricing compare to competitors"
+      },
+      {
+        "name": "industry_churn_benchmark",
+        "category": "external_competitive",
+        "asserted_by": ["form"],
+        "source_system": ["manual"],
+        "state_enum": ["present", "absent"],
+        "role_in_diagnosis": "CONTEXT",
+        "unit": "percentage",
+        "calculation": "Industry average churn rate for this retail category",
+        "description": "Benchmark to assess if our churn is abnormal"
+      },
+      {
+        "name": "industry_margin_benchmark",
+        "category": "external_competitive",
+        "asserted_by": ["form"],
+        "source_system": ["manual"],
+        "state_enum": ["present", "absent"],
+        "role_in_diagnosis": "CONTEXT",
+        "unit": "percentage",
+        "calculation": "Industry average gross margin for this category",
+        "description": "Benchmark to assess if our margin is abnormal"
+      }
+    ],
+
+    "decisions": [
+      {
+        "name": "BOTTLENECK_DIAGNOSIS",
+        "subject": "Business",
+        "question": "What is the #1 constraint limiting this business's growth?",
+        "reads": [
+          "revenue_monthly",
+          "churn_rate",
+          "repeat_purchase_rate",
+          "product_margin",
+          "product_revenue_pct",
+          "inventory_turnover",
+          "slow_moving_inventory_pct",
+          "customer_lifetime_value",
+          "customer_acquisition_cost",
+          "ltv_to_cac_ratio",
+          "revenue_concentration",
+          "channel_mix",
+          "margin_trend",
+          "revenue_trend",
+          "customer_cohort_retention",
+          "industry_churn_benchmark",
+          "industry_margin_benchmark"
+        ],
+        "owner": "Platform (automated)",
+        "phase": "P1",
+        "outcomes": [
+          {
+            "outcome": "IDENTIFIED",
+            "meaning": "The diagnosis succeeded; a bottleneck was found",
+            "data": {
+              "bottleneck_name": "string",
+              "bottleneck_type": "string, enum: [churn, margin, inventory, concentration, ltv_cac, channel]",
+              "severity_score": "0-100",
+              "evidence_supporting": ["evidence_id_1", "evidence_id_2"],
+              "missing_evidence": ["evidence_type_name"],
+              "confidence": "0.0-1.0",
+              "annual_opportunity_usd": "decimal"
+            },
+            "entitles": ["PROPOSE_ACTIONS"]
+          },
+          {
+            "outcome": "CANNOT_DECIDE",
+            "meaning": "Required evidence is missing or contradicted; cannot diagnose",
+            "data": {
+              "missing_evidence": ["revenue_monthly", "churn_rate"],
+              "reason": "string describing what's needed",
+              "confidence": 0.0
+            },
+            "entitles": []
+          }
+        ],
+        "always_returns": [
+          "bottleneck_name",
+          "severity_score",
+          "root_cause_analysis",
+          "supporting_evidence",
+          "missing_evidence",
+          "confidence",
+          "annual_opportunity_usd",
+          "input_digest"
+        ],
+        "determinism": "Same Evidence inputs must produce same outcome. Deterministic hash of inputs stored for auditability."
+      },
+      {
+        "name": "RECOMMENDATION_ASSESSMENT",
+        "subject": "Bottleneck + Business context",
+        "question": "For this bottleneck, what are the top 3 actions to take?",
+        "reads": [
+          "BOTTLENECK_DIAGNOSIS outcome",
+          "customer_lifetime_value",
+          "customer_acquisition_cost",
+          "revenue_concentration",
+          "margin_trend"
+        ],
+        "owner": "Platform (automated)",
+        "phase": "P1",
+        "outcomes": [
+          {
+            "outcome": "ASSESSED",
+            "meaning": "Recommendations generated",
+            "data": {
+              "actions": [
+                {
+                  "rank": 1,
+                  "action_name": "string",
+                  "verdict": "string, enum: [RECOMMENDED, NOT_RECOMMENDED]",
+                  "why": "explanation connecting to bottleneck",
+                  "investment_usd": "decimal",
+                  "expected_payback_usd": "decimal",
+                  "roi": "decimal (payback / investment)",
+                  "payback_weeks": "int",
+                  "measurement_framework": {
+                    "metric_to_track": "string",
+                    "success_criteria": "string",
+                    "measurement_frequency": "weekly | monthly"
+                  },
+                  "prerequisites": ["string"]
+                }
+              ]
+            },
+            "entitles": ["PUBLISH_REPORT", "EXECUTE_ACTION (per action where verdict = RECOMMENDED)"]
+          },
+          {
+            "outcome": "CANNOT_ASSESS",
+            "meaning": "Bottleneck identified but sizing evidence is missing; recommendations cannot be ranked",
+            "data": {
+              "missing_evidence": ["evidence_type_name"],
+              "reason": "string describing what's needed",
+              "confidence": 0.0
+            },
+            "entitles": ["PUBLISH_REPORT"]
+          }
+        ],
+        "always_returns": ["action_list", "roi_scores", "confidence", "next_step"],
+        "determinism": "Same bottleneck + same evidence = same recommendations"
+      }
+    ],
+
+    "verbs": [
+      {
+        "name": "SUBMIT_DATA",
+        "label": "Submit form or CSV data",
+        "mutates": ["Evidence"],
+        "read_only": false,
+        "performed_by": ["business_owner"],
+        "entitled_by": "role_only",
+        "risk": "low",
+        "phase": "P1",
+        "description": "Business owner enters data via form or uploads CSV"
+      },
+      {
+        "name": "ANALYZE",
+        "label": "Run BOTTLENECK_DIAGNOSIS",
+        "mutates": ["Decision"],
+        "read_only": false,
+        "performed_by": ["system"],
+        "entitled_by": "automatic (triggered by data submission)",
+        "risk": "low",
+        "phase": "P1",
+        "description": "Platform ingests Evidence and runs diagnosis (async job)"
+      },
+      {
+        "name": "PROPOSE_ACTIONS",
+        "label": "Generate recommendations",
+        "mutates": ["Decision", "Action (draft)"],
+        "read_only": false,
+        "performed_by": ["system"],
+        "entitled_by": "BOTTLENECK_DIAGNOSIS outcome = IDENTIFIED",
+        "risk": "low",
+        "phase": "P1",
+        "description": "Platform runs RECOMMENDATION_ASSESSMENT and ranks top 3"
+      },
+      {
+        "name": "PUBLISH_REPORT",
+        "label": "Generate and deliver monthly report",
+        "mutates": [],
+        "read_only": true,
+        "performed_by": ["system"],
+        "entitled_by": "automatic (triggered after PROPOSE_ACTIONS)",
+        "risk": "low",
+        "phase": "P1",
+        "description": "Render diagnosis + recommendations + measurement framework as PDF/HTML"
+      },
+      {
+        "name": "VIEW_REPORT",
+        "label": "Business owner views report",
+        "mutates": [],
+        "read_only": true,
+        "performed_by": ["business_owner", "consultant"],
+        "entitled_by": "role_only",
+        "risk": "none",
+        "phase": "P1",
+        "description": "Read-only access to monthly report and audit trail"
+      },
+      {
+        "name": "EXECUTE_ACTION",
+        "label": "Business owner takes an action",
+        "mutates": ["Action"],
+        "read_only": false,
+        "performed_by": ["business_owner"],
+        "entitled_by": "RECOMMENDATION_ASSESSMENT outcome = ASSESSED and action verdict = RECOMMENDED",
+        "risk": "medium",
+        "phase": "P2",
+        "description": "Owner implements a recommended action (e.g., loyalty program, price change)"
+      },
+      {
+        "name": "RECORD_OUTCOME",
+        "label": "Business owner reports results",
+        "mutates": ["Evidence (creates new)"],
+        "read_only": false,
+        "performed_by": ["business_owner"],
+        "entitled_by": "role_only (owner decides)",
+        "risk": "low",
+        "phase": "P2",
+        "description": "Owner enters outcome metrics (e.g., churn improved 3%) → becomes new Evidence"
+      },
+      {
+        "name": "CONNECT_SHOPIFY",
+        "label": "Grant OAuth permission to Shopify",
+        "mutates": ["Business (shopify_token added)"],
+        "read_only": false,
+        "performed_by": ["business_owner"],
+        "entitled_by": "OAuth consent flow",
+        "risk": "medium",
+        "phase": "P2",
+        "description": "Owner grants Accord access to Shopify data"
+      }
+    ],
+
+    "links": [
+      {
+        "link": "has_products",
+        "from": "Business",
+        "to": ["Product"],
+        "cardinality": "1..n",
+        "meaning": "A business sells many products",
+        "enforces": "A product belongs to exactly one business"
+      },
+      {
+        "link": "has_sales",
+        "from": "Business",
+        "to": ["Sale"],
+        "cardinality": "1..n",
+        "meaning": "A business has many transactions",
+        "enforces": "Every sale belongs to one business"
+      },
+      {
+        "link": "has_customers",
+        "from": "Business",
+        "to": ["Customer"],
+        "cardinality": "1..n",
+        "meaning": "A business has many customer cohorts",
+        "enforces": "Every customer belongs to one business"
+      },
+      {
+        "link": "of_product",
+        "from": "Sale",
+        "to": ["Product"],
+        "cardinality": "n..1",
+        "meaning": "Each sale is of one product",
+        "enforces": "A sale cannot reference multiple products"
+      },
+      {
+        "link": "of_customer",
+        "from": "Sale",
+        "to": ["Customer"],
+        "cardinality": "n..1",
+        "meaning": "Each sale is to one customer",
+        "enforces": "A sale is never orphaned"
+      },
+      {
+        "link": "about",
+        "from": "Evidence",
+        "to": ["Business", "Product", "Customer", "Sale"],
+        "cardinality": "n..1",
+        "meaning": "Evidence is always scoped to an object",
+        "enforces": "Evidence is never free-floating; always has a subject"
+      },
+      {
+        "link": "supports",
+        "from": "Decision",
+        "to": ["Evidence"],
+        "cardinality": "1..m",
+        "meaning": "A decision reads multiple evidence types",
+        "enforces": "Decision stores which Evidence version it read (for replay)"
+      },
+      {
+        "link": "authorized_by",
+        "from": "Action",
+        "to": ["Decision"],
+        "cardinality": "n..1",
+        "meaning": "An action requires a decision outcome to execute",
+        "enforces": "No action without authorization; roles alone never sufficient"
+      },
+      {
+        "link": "produces",
+        "from": "Action",
+        "to": ["Evidence"],
+        "cardinality": "1..n",
+        "meaning": "An action creates new Evidence (results)",
+        "enforces": "Closes the loop: Evidence has provenance (action behind it)"
+      }
+    ]
+  },
+
+  "governance": {
+
+    "_comment": "rules are invariants the engine must enforce; entitlements map roles to the verbs they may perform. A role permits participation; only a decision outcome entitles a consequential verb.",
+
+    "rules": [
+      {
+        "id": "G-01",
+        "rule": "Every decision is deterministic",
+        "enforcement": "Same Evidence inputs → same outcome. input_digest validates this.",
+        "phase": "P1+"
+      },
+      {
+        "id": "G-02",
+        "rule": "Every evidence type has source and calculation rule",
+        "enforcement": "Evidence never computed invisibly. asserted_by and source_system always declared.",
+        "phase": "P1+"
+      },
+      {
+        "id": "G-03",
+        "rule": "Contradicted evidence blocks decisions",
+        "enforcement": "If two evidence sources disagree (state=contradicted), decision returns CANNOT_DECIDE and names the conflict.",
+        "phase": "P1+"
+      },
+      {
+        "id": "G-04",
+        "rule": "Thin data is flagged",
+        "enforcement": "confidence < 0.7 → decision includes reason (missing data, low sample size).",
+        "phase": "P1+"
+      },
+      {
+        "id": "G-05",
+        "rule": "Every action requires a decision outcome",
+        "enforcement": "authorized_by_decision_id never NULL for consequential actions. Roles alone never authorize.",
+        "phase": "P2+"
+      },
+      {
+        "id": "G-06",
+        "rule": "No number is fabricated",
+        "enforcement": "If data missing, decision returns CANNOT_DECIDE and names the gap. Never extrapolate from thin data.",
+        "phase": "P1+"
+      },
+      {
+        "id": "G-07",
+        "rule": "Tenant isolation",
+        "enforcement": "Every query filtered by business_id at database layer. No cross-tenant data leakage. Critical from Phase 3 (multi-tenant).",
+        "phase": "P1+"
+      },
+      {
+        "id": "G-08",
+        "rule": "Audit trail immutable",
+        "enforcement": "audit_log is append-only. No deletes, no updates. Entry per action.",
+        "phase": "P1+"
+      }
+    ],
+
+    "entitlements": [
+      {
+        "role": "business_owner",
+        "can_perform": ["SUBMIT_DATA", "VIEW_REPORT", "EXECUTE_ACTION", "RECORD_OUTCOME", "CONNECT_SHOPIFY"],
+        "cannot_perform": ["ANALYZE", "PROPOSE_ACTIONS", "PUBLISH_REPORT"],
+        "scope": "own business only",
+        "phase": "P1+"
+      },
+      {
+        "role": "consultant",
+        "can_perform": ["VIEW_REPORT"],
+        "cannot_perform": ["SUBMIT_DATA", "ANALYZE", "PROPOSE_ACTIONS", "PUBLISH_REPORT", "EXECUTE_ACTION", "RECORD_OUTCOME", "CONNECT_SHOPIFY"],
+        "scope": "clients' businesses only (if granted access by owner)",
+        "phase": "P2+"
+      },
+      {
+        "role": "system",
+        "can_perform": ["ANALYZE", "PROPOSE_ACTIONS", "PUBLISH_REPORT"],
+        "cannot_perform": ["SUBMIT_DATA", "VIEW_REPORT", "EXECUTE_ACTION", "RECORD_OUTCOME", "CONNECT_SHOPIFY"],
+        "scope": "all tenants (but queries filtered by business_id)",
+        "phase": "P1+"
+      }
+    ]
+  }
+}

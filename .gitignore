@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+node_modules/
+npm-debug.log
+.env
+.vscode/
+.DS_Store
+.env.local
