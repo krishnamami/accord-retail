@@ -9,18 +9,17 @@ import sys
 from datetime import datetime
 
 # Database connection
-DB_CONFIG = {
-    "host": "database-1.c1qseu4kq079.us-west-2.rds.amazonaws.com",
-    "port": 5432,
-    "database": "accord_retail",
-    "user": "postgres",
-    "password": "Sharanya87$"
-}
+import os
+import sys
+
+# Credentials are never hard-coded: DATABASE_URL comes from the environment / .env (see database/scripts/db_config.py)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'database', 'scripts'))
+from db_config import connect  # noqa: E402
 
 def connect_db():
     """Connect to database"""
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
+        conn = connect()
         return conn
     except Exception as e:
         print(f"❌ Database connection failed: {e}")

@@ -6,15 +6,14 @@ Executes: Raw → Validate → Normalize → Evidence → Context → Rules → 
 
 import psycopg2
 
-DB_CONFIG = {
-    "host": "database-1.c1qseu4kq079.us-west-2.rds.amazonaws.com",
-    "port": 5432,
-    "database": "accord_retail",
-    "user": "postgres",
-    "password": "Sharanya87$"
-}
+import os
+import sys
 
-conn = psycopg2.connect(**DB_CONFIG)
+# Credentials are never hard-coded: DATABASE_URL comes from the environment / .env (see database/scripts/db_config.py)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'database', 'scripts'))
+from db_config import connect  # noqa: E402
+
+conn = connect()
 
 print("\n╔" + "="*68 + "╗")
 print("║" + "ACCORD RETAIL: COMPLETE PIPELINE (STEPS 1-8)".center(68) + "║")
