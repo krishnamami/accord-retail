@@ -30,8 +30,6 @@ CREATE INDEX ON retention_customer_pool (business_id, customer_rank);
 
 -- 2) Rank sales within each business. Simple modulo assignment guarantees that
 -- every eligible customer receives a sale whenever sales >= eligible customers.
--- With 2,000 sales and 1,000 customers/business, all 600 eligible customers are
--- represented and receive ~3-4 transactions each.
 CREATE TEMP TABLE retention_sale_assignment ON COMMIT DROP AS
 WITH sale_ranked AS (
     SELECT
@@ -89,7 +87,8 @@ GROUP BY c.business_id,c.customer_id,a.data_as_of;
 CREATE INDEX ON retention_observed_truth (business_id, customer_id);
 
 -- 4) Reconcile normal customer profile assertions from observed behavior.
--- repeat_count means repeat purchases after the first observed purchase.
+-- runtime.customer in the active schema has no updated_at column, so this
+-- update intentionally touches only the retention attributes that exist.
 UPDATE runtime.customer c
 SET
     first_purchase_date = CASE
@@ -110,12 +109,10 @@ SET
         WHEN t.observed_order_count > 0
          AND t.observed_last_purchase_date >= t.data_as_of - 180 THEN 'dormant'
         WHEN t.observed_order_count > 0 THEN 'churned'
-        -- Profile-only assertions remain contextual, not transaction truth.
         WHEN MOD(ABS(HASHTEXT(c.customer_id::text)),10) < 5 THEN 'active'
         WHEN MOD(ABS(HASHTEXT(c.customer_id::text)),10) < 8 THEN 'dormant'
         ELSE 'churned'
-    END,
-    updated_at = CURRENT_TIMESTAMP
+    END
 FROM retention_observed_truth t
 WHERE t.business_id=c.business_id
   AND t.customer_id=c.customer_id;
@@ -123,15 +120,13 @@ WHERE t.business_id=c.business_id
 -- 5) Preserve a small deterministic assertion-conflict population among
 -- customers WITH observed transactions for governance/boundary testing.
 UPDATE runtime.customer c
-SET
-    churn_status = CASE
-        WHEN MOD(ABS(HASHTEXT(c.customer_id::text)),100) < 3
-         AND t.observed_last_purchase_date >= t.data_as_of - 90 THEN 'churned'
-        WHEN MOD(ABS(HASHTEXT(c.customer_id::text)),100) BETWEEN 3 AND 4
-         AND t.observed_last_purchase_date < t.data_as_of - 180 THEN 'active'
-        ELSE c.churn_status
-    END,
-    updated_at = CURRENT_TIMESTAMP
+SET churn_status = CASE
+    WHEN MOD(ABS(HASHTEXT(c.customer_id::text)),100) < 3
+     AND t.observed_last_purchase_date >= t.data_as_of - 90 THEN 'churned'
+    WHEN MOD(ABS(HASHTEXT(c.customer_id::text)),100) BETWEEN 3 AND 4
+     AND t.observed_last_purchase_date < t.data_as_of - 180 THEN 'active'
+    ELSE c.churn_status
+END
 FROM retention_observed_truth t
 WHERE t.business_id=c.business_id
   AND t.customer_id=c.customer_id
