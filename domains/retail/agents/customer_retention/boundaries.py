@@ -1,1 +1,6 @@
-"""Recommendation boundary evaluation for the Customer Retention agent."""
+"""Recommendation boundaries for Customer Retention."""
+def evaluate_boundaries(c,rules):
+    checks=[{'boundary_id':'BND_RET_001','description':'Observed transaction evidence is required for behavioral retention decisioning','passed':c.behavioral_evidence_available and c.retention_evidence_status=='READY'},{'boundary_id':'BND_RET_002','description':'Profile assertion is contextual evidence, not behavioral truth','passed':True},{'boundary_id':'BND_RET_003','description':'Retention agent cannot infer why a customer disengaged from recency alone','passed':True},{'boundary_id':'BND_RET_004','description':'Retention agent cannot autonomously issue discounts, offers or outreach','passed':True}]
+    if not c.behavioral_evidence_available or c.retention_evidence_status!='READY': return {'status':'CANNOT_DECIDE','reason':'Observed customer transaction evidence is unavailable or insufficient.','checks':checks}
+    if c.assertion_conflict: return {'status':'WITHIN_BOUNDARY_WITH_CONFLICT','reason':'Behavioral evidence supports classification, but the source profile assertion conflicts and must remain visible.','checks':checks}
+    return {'status':'WITHIN_DIAGNOSTIC_BOUNDARY','reason':'Observed behavior supports retention classification; intervention remains governed.','checks':checks}
