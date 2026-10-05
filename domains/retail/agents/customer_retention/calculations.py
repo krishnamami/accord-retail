@@ -1,1 +1,5 @@
-"""Deterministic calculations for the Customer Retention agent."""
+"""Deterministic calculations for Customer Retention."""
+from .context import RetentionContext
+def calculate(c:RetentionContext):
+    avg_order_value=None if not c.observed_orders or c.observed_revenue is None else round(c.observed_revenue/c.observed_orders,2)
+    return {'observed_orders':c.observed_orders,'observed_revenue':c.observed_revenue,'average_order_value':avg_order_value,'recency_days':c.recency_days,'profile_recency_days':c.profile_recency_days,'repeat_customer':c.repeat_customer,'observed_orders_per_day':c.observed_orders_per_day,'observed_behavior_status':c.observed_behavior_status,'asserted_churn_status':c.asserted_churn_status,'assertion_conflict':c.assertion_conflict,'trace':[{'metric':'recency_days','formula':'data_as_of-observed_last_purchase','result':c.recency_days},{'metric':'average_order_value','formula':'observed_revenue/observed_orders','result':avg_order_value},{'metric':'observed_behavior_status','formula':'ACTIVE <=90d; DORMANT 91-180d; CHURNED >180d','result':c.observed_behavior_status}]}
