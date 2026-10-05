@@ -1,7 +1,8 @@
 """Revenue Health agent orchestration.
 
 Flow: context -> calculations -> evidence -> rules -> boundaries -> recommendation
--> auditable decision package. No LLM is required to determine the decision.
+-> specialist routing -> auditable decision package. No LLM is required to
+determine the decision.
 """
 from __future__ import annotations
 
@@ -16,7 +17,7 @@ from .boundaries import evaluate_boundaries
 from .recommendations import recommend
 
 AGENT_NAME = "revenue_health"
-AGENT_VERSION = "1.0.0"
+AGENT_VERSION = "1.1.0"
 METRIC_VERSION = "revenue-context-v2"
 
 
@@ -43,6 +44,7 @@ def run(row: Mapping[str, Any], *, kb_version: str | None = None) -> dict[str, A
         "rules_evaluated": rules,
         "rules_fired": fired,
         "boundary": boundary,
+        "specialist_routes": recommendation["specialist_routes"],
         "allowed_actions": recommendation["allowed_actions"],
         "restricted_actions": recommendation["restricted_actions"],
         "versions": {"kb_version": kb_version, "rule_version": RULE_VERSION, "metric_version": METRIC_VERSION},
