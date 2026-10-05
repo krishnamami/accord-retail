@@ -1,1 +1,6 @@
-"""Deterministic calculations for the Inventory Exposure agent."""
+"""Deterministic calculations for Inventory Exposure."""
+from .context import InventoryContext
+def calculate(c:InventoryContext):
+    reorder_shortfall=max(0,-c.reorder_gap_units) if c.reorder_gap_units is not None else None
+    excess_over_reorder=max(0,c.reorder_gap_units) if c.reorder_gap_units is not None else None
+    return {'quantity_on_hand':c.quantity_on_hand,'reorder_point':c.reorder_point,'reorder_gap_units':c.reorder_gap_units,'reorder_shortfall_units':reorder_shortfall,'excess_over_reorder_units':excess_over_reorder,'units_30d':c.units_30d,'units_90d':c.units_90d,'daily_sales_velocity_90d':c.daily_sales_velocity_90d,'days_of_supply':c.days_of_supply,'inventory_value':c.inventory_value,'velocity_band':c.velocity_band,'supply_band':c.supply_band,'excess_supply_candidate':c.excess_supply_candidate,'slow_moving_candidate':c.slow_moving_candidate,'capital_exposure_candidate':c.capital_exposure_candidate,'trace':[{'metric':'reorder_gap_units','formula':'quantity_on_hand-reorder_point','result':c.reorder_gap_units},{'metric':'daily_sales_velocity_90d','formula':'units_90d/90','result':c.daily_sales_velocity_90d},{'metric':'days_of_supply','formula':'quantity_on_hand/daily_sales_velocity_90d','result':c.days_of_supply},{'metric':'inventory_value','formula':'quantity_on_hand*cogs','result':c.inventory_value}]}
