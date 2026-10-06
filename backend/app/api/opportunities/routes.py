@@ -1,6 +1,7 @@
 from typing import Optional
 from uuid import UUID
 
+import json
 import asyncpg
 from fastapi import APIRouter, HTTPException, Query
 
@@ -10,9 +11,26 @@ router = APIRouter()
 
 
 async def _connect() -> asyncpg.Connection:
-    return await asyncpg.connect(
+    conn = await asyncpg.connect(
         DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
     )
+    # asyncpg returns PostgreSQL json/jsonb as strings by default.
+    # Decode them here so the API contract exposes native JSON objects/arrays.
+    await conn.set_type_codec(
+        "json",
+        schema="pg_catalog",
+        encoder=json.dumps,
+        decoder=json.loads,
+        format="text",
+    )
+    await conn.set_type_codec(
+        "jsonb",
+        schema="pg_catalog",
+        encoder=json.dumps,
+        decoder=json.loads,
+        format="text",
+    )
+    return conn
 
 
 @router.get("")
