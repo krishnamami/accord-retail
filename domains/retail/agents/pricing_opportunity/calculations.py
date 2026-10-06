@@ -1,1 +1,6 @@
-"""Deterministic calculations for the Pricing Opportunity agent."""
+"""Deterministic calculations for Pricing Opportunity."""
+from .context import PricingContext
+def calculate(c:PricingContext):
+    markup=None if c.cogs in (None,0) or c.realized_unit_price is None else round(100*(c.realized_unit_price-c.cogs)/c.cogs,2)
+    inventory_gap=None if c.quantity_on_hand is None or c.reorder_point is None else c.quantity_on_hand-c.reorder_point
+    return {"realized_unit_price":c.realized_unit_price,"list_to_realized_discount_pct":c.list_to_realized_discount_pct,"realized_gross_margin_pct":c.realized_gross_margin_pct,"realized_markup_on_cost_pct":markup,"competitor_price":c.competitor_price,"competitor_price_gap_amount":c.competitor_price_gap_amount,"competitor_price_gap_pct":c.competitor_price_gap_pct,"competitor_comparability_score":c.competitor_comparability_score,"competitor_confidence":c.competitor_confidence,"inventory_gap_units":inventory_gap,"trace":[{"metric":"competitor_price_gap_pct","formula":"100*(competitor_price-realized_unit_price)/realized_unit_price","result":c.competitor_price_gap_pct},{"metric":"realized_gross_margin_pct","formula":"100*(realized_unit_price-cogs)/realized_unit_price","result":c.realized_gross_margin_pct},{"metric":"list_to_realized_discount_pct","formula":"100*(list_price-realized_unit_price)/list_price","result":c.list_to_realized_discount_pct}]}
