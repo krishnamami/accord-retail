@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 
 # Import router
 from app.api.decisions.routes import router as decisions_router
+from app.api.opportunities.routes import router as opportunities_router
 
 app = FastAPI(
     title="Accord Retail API",
@@ -23,6 +24,7 @@ app.add_middleware(
 
 # Include router
 app.include_router(decisions_router, prefix="/api/decisions", tags=["decisions"])
+app.include_router(opportunities_router, prefix="/api/opportunities", tags=["opportunities"])
 
 @app.get("/health")
 async def health():
