@@ -1,1 +1,11 @@
-"""Permitted recommendation mapping for the Pricing Opportunity agent."""
+"""Permitted recommendation mapping for Pricing Opportunity."""
+def recommend(rules,boundary):
+    fired={r["rule_id"] for r in rules if r["fired"]}
+    restricted=["AUTO_CHANGE_PRICE","AUTO_PUBLISH_PRICE","CLAIM_DEMAND_ELASTICITY","CLAIM_CAUSAL_REVENUE_LIFT"]
+    if boundary["status"]=="CANNOT_DECIDE": return {"decision":"CANNOT_DECIDE","severity":"UNKNOWN","recommendation":"Obtain sufficient sales and unit-economics evidence before pricing analysis.","allowed_actions":["REFRESH_PRICING_EVIDENCE"],"restricted_actions":restricted}
+    if boundary["status"]=="LIMITED_COMPETITOR_EVIDENCE": return {"decision":"LIMITED_EVIDENCE","severity":"LOW","recommendation":"Use internal price and margin diagnostics only; refresh comparable competitor evidence before competitor-driven action.","allowed_actions":["MONITOR_INTERNAL_PRICING","REFRESH_COMPETITOR_EVIDENCE"],"restricted_actions":restricted}
+    if "PRC_004" in fired: return {"decision":"MARGIN_PROTECTION","severity":"HIGH","recommendation":"Review pricing and discount leakage before considering any price reduction.","allowed_actions":["REVIEW_PRICE","REVIEW_DISCOUNTING","ROUTE_FOR_PRICING_REVIEW"],"restricted_actions":restricted}
+    if "PRC_001" in fired and "PRC_005" in fired: return {"decision":"PRICE_UP_OPPORTUNITY","severity":"MEDIUM","recommendation":"Evaluate a governed price-increase test; competitor evidence indicates potential headroom while realized margin remains healthy.","allowed_actions":["MODEL_PRICE_SCENARIO","ROUTE_FOR_PRICING_REVIEW"],"restricted_actions":restricted}
+    if "PRC_002" in fired: return {"decision":"COMPETITIVE_PRICE_RISK","severity":"MEDIUM","recommendation":"Review competitive positioning before changing price; do not infer elasticity from the observed gap.","allowed_actions":["REVIEW_COMPETITOR_POSITION","MODEL_PRICE_SCENARIO"],"restricted_actions":restricted}
+    if "PRC_003" in fired: return {"decision":"DISCOUNT_LEAKAGE","severity":"MEDIUM","recommendation":"Investigate realized discounting before changing list price.","allowed_actions":["REVIEW_DISCOUNTING","MONITOR"],"restricted_actions":restricted}
+    return {"decision":"PRICE_HOLD","severity":"LOW","recommendation":"No material pricing action is indicated by current deterministic evidence.","allowed_actions":["MONITOR"],"restricted_actions":restricted}
