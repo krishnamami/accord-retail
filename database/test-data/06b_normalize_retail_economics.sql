@@ -31,11 +31,6 @@ SET cogs = ROUND(
 WHERE p.list_price IS NOT NULL
   AND p.list_price > 0;
 
--- Keep legacy cost_per_unit aligned when that column exists in this model.
-UPDATE runtime.product
-SET cost_per_unit = cogs
-WHERE cogs IS NOT NULL;
-
 -- 2) Build a deterministic sale-level discount rate.
 CREATE TEMP TABLE normalized_sale_price ON COMMIT DROP AS
 SELECT
