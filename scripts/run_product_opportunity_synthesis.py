@@ -66,32 +66,69 @@ RULES = [
 
 
 def choose_opportunity(margin, inventory, pricing):
+    """Choose the highest-priority supported merchandising action.
+
+    Evidence limitations are scoped to the action that requires that evidence.
+    A limited pricing signal does not suppress a supported inventory action.
+    """
     decisions = [x["decision"] for x in (margin, inventory, pricing) if x]
     if not decisions:
         return None
+
+    m = margin["decision"] if margin else None
+    i = inventory["decision"] if inventory else None
+    p = pricing["decision"] if pricing else None
+
+    # Cross-agent condition first: supported margin risk plus excess/capital exposure.
+    if m == "MARGIN_RISK" and i in {"EXCESS_INVENTORY_RISK", "SLOW_MOVING_RISK", "CAPITAL_EXPOSURE"}:
+        rule = RULES[0]
+        return {**rule, "rule_id": rule["id"], "evidence_status": "READY"}
+
+    # Operational inventory risk takes precedence over optional pricing upside.
+    if i == "REPLENISHMENT_RISK":
+        rule = next(r for r in RULES if r["id"] == "SYN_003")
+        return {**rule, "rule_id": rule["id"], "evidence_status": "READY"}
+
+    if i in {"EXCESS_INVENTORY_RISK", "SLOW_MOVING_RISK", "CAPITAL_EXPOSURE"}:
+        rule = next(r for r in RULES if r["id"] == "SYN_004")
+        return {**rule, "rule_id": rule["id"], "evidence_status": "READY"}
+
+    # Pricing actions require usable pricing evidence.
+    if p == "MARGIN_PROTECTION":
+        rule = next(r for r in RULES if r["id"] == "SYN_005")
+        return {**rule, "rule_id": rule["id"], "evidence_status": "READY"}
+
+    if p == "COMPETITIVE_PRICE_RISK":
+        rule = next(r for r in RULES if r["id"] == "SYN_006")
+        return {**rule, "rule_id": rule["id"], "evidence_status": "READY"}
+
+    if p == "DISCOUNT_LEAKAGE":
+        rule = next(r for r in RULES if r["id"] == "SYN_007")
+        return {**rule, "rule_id": rule["id"], "evidence_status": "READY"}
+
+    if p == "PRICE_UP_OPPORTUNITY" and m not in {"MARGIN_RISK", "CANNOT_DECIDE"}:
+        rule = next(r for r in RULES if r["id"] == "SYN_002")
+        return {**rule, "rule_id": rule["id"], "evidence_status": "READY"}
+
+    # Evidence gaps are returned only when no independently supported action
+    # above can be recommended.
     if "CANNOT_DECIDE" in decisions:
         return {
             "rule_id": "SYN_000",
             "type": "EVIDENCE_GAP",
             "priority": "LOW",
-            "recommendation": "Refresh missing decision evidence before taking a cross-agent merchandising action.",
+            "recommendation": "Refresh missing decision evidence before taking an evidence-dependent merchandising action.",
             "evidence_status": "CANNOT_DECIDE",
         }
+
     if "LIMITED_EVIDENCE" in decisions:
         return {
             "rule_id": "SYN_008",
             "type": "EVIDENCE_GAP",
             "priority": "LOW",
-            "recommendation": "Current evidence supports monitoring only; refresh limited evidence before evidence-sensitive merchandising action.",
+            "recommendation": "Refresh limited evidence before taking an action that depends on that evidence.",
             "evidence_status": "LIMITED",
         }
-
-    m = margin["decision"] if margin else None
-    i = inventory["decision"] if inventory else None
-    p = pricing["decision"] if pricing else None
-    for rule in RULES:
-        if rule["when"](m, i, p):
-            return {**rule, "rule_id": rule["id"], "evidence_status": "READY"}
 
     return {
         "rule_id": "SYN_009",
@@ -100,7 +137,6 @@ def choose_opportunity(margin, inventory, pricing):
         "recommendation": "No cross-agent merchandising intervention is indicated by the current deterministic evidence.",
         "evidence_status": "READY",
     }
-
 
 def main():
     import psycopg
