@@ -4,15 +4,14 @@ from uuid import UUID
 import asyncpg
 from fastapi import APIRouter, HTTPException, Query
 
-from app.db import get_database_url
+from app.db.database import DATABASE_URL
 
 router = APIRouter()
 
 
 async def _connect() -> asyncpg.Connection:
     """Open an asyncpg connection using the configured DATABASE_URL."""
-    db_url = get_database_url()
-    return await asyncpg.connect(db_url.replace("postgresql+asyncpg://", "postgresql://"))
+    return await asyncpg.connect(DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://"))
 
 
 @router.get("")
