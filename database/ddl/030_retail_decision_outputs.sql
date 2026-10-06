@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS runtime.retail_decision_outputs (
     CONSTRAINT retail_decision_subject_type_chk
       CHECK (subject_type IN ('business','product','customer')),
     CONSTRAINT retail_decision_severity_chk
-      CHECK (severity IN ('LOW','MEDIUM','HIGH','CRITICAL')),
+      CHECK (severity IN ('UNKNOWN','LOW','MEDIUM','HIGH','CRITICAL')),
     CONSTRAINT retail_decision_confidence_chk
       CHECK (confidence IS NULL OR (confidence >= 0 AND confidence <= 1))
 );
