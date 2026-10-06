@@ -1,1 +1,5 @@
-"""Evidence construction and lineage for the Pricing Opportunity agent."""
+"""Evidence construction and lineage for Pricing Opportunity."""
+from .context import PricingContext
+def build_evidence(c:PricingContext,calc):
+    vals=[("REALIZED_PRICE","Observed realized unit price",c.realized_unit_price,"transaction",c.sales_evidence_status),("REALIZED_MARGIN","Observed realized gross margin percent",c.realized_gross_margin_pct,"derived",c.margin_evidence_status),("DISCOUNT_RATE","Observed list-to-realized discount percent",c.list_to_realized_discount_pct,"derived",c.sales_evidence_status),("INVENTORY_POSITION","Current quantity on hand",c.quantity_on_hand,"inventory",c.inventory_evidence_status),("COMPETITOR_PRICE","Comparable competitor price",c.competitor_price,"external",c.competitor_evidence_status),("COMPETITOR_GAP","Competitor gap versus realized price percent",c.competitor_price_gap_pct,"derived",c.competitor_evidence_status)]
+    return [{"evidence_type":t,"finding":f,"value":v,"evidence_class":cls,"quality_status":q,"business_id":c.business_id,"product_id":c.product_id,"data_as_of":c.data_as_of,"source":"agent.pricing_opportunity_context"} for t,f,v,cls,q in vals if v is not None]
